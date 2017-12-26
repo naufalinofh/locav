@@ -43,8 +43,8 @@ volatile uint16_t elevator;
 
 volatile uint16_t pwmMode;
 volatile uint32_t prev_timeMode;
-volatile char mode = 'b'; //m = manual, drown, cruise, float
-volatile char prev_mode = 'b';
+volatile char mode = 'm'; //m = manual, drown, cruise, float
+volatile char prev_mode = 'm';
 
 double LA_set = LA_bal;
 double LA_dist;
@@ -123,7 +123,7 @@ void loop() {
   {
     cruise();
   }else{
-    loopMode(mode);
+    buoyMode(mode);
   }
     Serial.print("  mode: ");
     Serial.print(mode);
@@ -201,6 +201,10 @@ void cruise() //service routine while cruise
     digitalWrite(R_EN, LOW);
     digitalWrite(L_EN, LOW);
     analogWrite(LA_PWM,0);
+    if(prev_mode != 'c'){
+      prev_mode = 'c';  
+    }
+    
 }
 
 void currentMode (){
@@ -233,24 +237,9 @@ uint8_t calcLA ()//calculate necessary PWM signal to move LA
   return ret;
 }
 
-
-void loopMode (char m) //routine mode while buoy/ not cruise
-{
-    digitalWrite(elevPin, LOW); //turn off elevator
-    
-    //Compute Set point
-    switch (m){
-      case 'f' : LA_set = LA_max; 
-              break;    //floating, linear maximum length, push water out
-      
-      case 'd' : LA_set = LA_min; 
-              break;    //drowning, linear minimum length, pull water in
-      case 'm' : LA_set = (double) setLA();
-                break;  //manual, setpoint from ch2 input
-      default : LA_set = (double) setLA();
-    }
-    
-    //LA_set = (double) setLA();
+void manualMode(double f){    // looping routine for manual mode
+  //Compute Set point
+    LA_set = f;
     //LA_set = 25;
     
     /*//Measure distance with ultrasonic sensor
@@ -267,9 +256,8 @@ void loopMode (char m) //routine mode while buoy/ not cruise
     // PID Computation
     myPID.Compute();
     LA_pwm = calcLA();
+
     
-    digitalWrite(R_EN, HIGH);
-    digitalWrite(L_EN, HIGH);
     //PWM Output 
     if(LA_dist >= LA_set ) {
         //digitalWrite(R_EN, LOW);
@@ -284,4 +272,57 @@ void loopMode (char m) //routine mode while buoy/ not cruise
         analogWrite(LA_PWM,0);
         analogWrite(RPWM,LA_pwm);
     }
+}
+
+void drownMode(){   //looping routin for drowning
+  LA_pwm = 255;
+  analogWrite(LA_PWM,LA_pwm);
+  analogWrite(RPWM,0);
+  delay (10000);  //drowning for 10 seconds
+   if(prev_mode != 'd'){
+      prev_mode = 'd';  
+   }
+}
+
+
+void floatMode(){   //looping routin for floating
+  LA_pwm = 255;
+  analogWrite(LA_PWM,0);
+  analogWrite(RPWM,LA_pwm);
+  delay (10000);  //floating for 10 seconds
+  if(prev_mode != 'f'){
+      prev_mode = 'f';  
+  }
+}
+
+void buoyMode (char m) //routine mode while buoy/ not cruise
+{
+    digitalWrite(elevPin, LOW); //turn off elevator
+    digitalWrite(R_EN, HIGH);
+    digitalWrite(L_EN, HIGH);
+
+    switch (m){
+      case 'm' :     
+         manualMode((double) (setLA()));
+          if(prev_mode != 'm'){
+            prev_mode = 'm';  
+          }              
+                break;
+      case 'd' :  
+        if (prev_mode == 'd'){
+            manualMode(LA_bal);
+         }else{
+           drownMode();
+         }
+         break;
+      case 'f':
+        if (prev_mode == 'f'){
+            manualMode(LA_bal);
+         }else{
+           floatMode();
+         }
+         break;
+       default: manualMode((double) (setLA() ) );
+    }
+
 }
