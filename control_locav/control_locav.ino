@@ -17,7 +17,6 @@
 #define trigPin 2 //trigger pin for ultrasonic
 #define echoPin 3 //trigger pin for ultrasonic
 
-#define limMode 1700 //GANTI dengan batas pwm mode untuk buoy. < lim bakal buoy
 #define elTol 100 // tolerance for ch2 out pwm stable
 //bit flags
 #define EL_FLAG 1
@@ -26,6 +25,7 @@ volatile uint8_t bUpdateFlagsShared; //hold the update flags bit
 
  
 /**CHANGE - Depend on Calibration / initial setup in GCS */
+const uint16_t limMode[3] = {1490, 1620, 1749}; //GANTI dengan batas pwm mode untuk berbagai mode [float, drown, cruise, manual]. < lim bakal buoy
 const double LA_bal = 5; //length of LA to balance the system
 const double LA_min = 0; //minimum length LA
 const double LA_max = 15; //maximum length LA
@@ -43,7 +43,8 @@ volatile uint16_t elevator;
 
 volatile uint16_t pwmMode;
 volatile uint32_t prev_timeMode;
-volatile char mode = 'b'; //buoy mode and cruise mode
+volatile char mode = 'b'; //m = manual, drown, cruise, float
+volatile char prev_mode = 'b';
 
 double LA_set = LA_bal;
 double LA_dist;
@@ -116,49 +117,13 @@ void loop() {
     
   }
   
-  if (mode == 'b')
-  {
-    digitalWrite(elevPin, LOW); //turn off elevator
-    //Compute Set point
-    LA_set = (double) setLA();
-    //LA_set = 25;
-    
-    /*//Measure distance with ultrasonic sensor
-    digitalWrite(trigPin,LOW);
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10); 
-    digitalWrite(trigPin, LOW);
-    duration = pulseIn(echoPin, HIGH);
-    LA_dist = (duration/2) / 29.1;
-  */LA_dist = LA_bal;
-    // PID Computation
-    myPID.Compute();
-    LA_pwm = calcLA();
-    
-  digitalWrite(R_EN, HIGH);
-  digitalWrite(L_EN, HIGH);
-    //PWM Output 
-    if(LA_dist <= LA_set ) {
-        //digitalWrite(R_EN, LOW);
-        //digitalWrite(L_EN, HIGH);
-        analogWrite(LA_PWM,LA_pwm);
-        analogWrite(RPWM,0);
-    }
-    else {
-        //digitalWrite(R_EN, HIGH);
-       // digitalWrite(L_EN, LOW);
-        //analogWrite(LA_PWM,LA_out);
-        analogWrite(LA_PWM,0);
-        analogWrite(RPWM,LA_pwm);
-    }
-  }else
+  currentMode(); //decide the current mode
+  
   if (mode =='c')
   {
-    //turn off linear actator
-    digitalWrite(R_EN, LOW);
-    digitalWrite(L_EN, LOW);
-    analogWrite(LA_PWM,0);
+    cruise();
+  }else{
+    loopMode(mode);
   }
     Serial.print("  mode: ");
     Serial.print(mode);
@@ -202,13 +167,6 @@ void isrMode() {
   }else{
     pwmMode = (uint16_t)(micros()-prev_timeMode);  
     bUpdateFlagsShared |= MODE_FLAG;
-    
-    if (pwmMode < limMode){   //change movement mode to buoy or cruise
-      mode = 'b'; //buoy mode
-    }else{
-      mode = 'c'; //cruise mode
-      digitalWrite(elevPin, digitalRead(elevPin)); //bypass the signal
-    }
   }
 }
 
@@ -237,6 +195,29 @@ double setLA ()  //compute set point from PWM signal
   return ret;
 }
 
+void cruise() //service routine while cruise
+{
+    //turn off linear actuator
+    digitalWrite(R_EN, LOW);
+    digitalWrite(L_EN, LOW);
+    analogWrite(LA_PWM,0);
+}
+
+void currentMode (){
+  //decide what current mode from RC CH5 Input 
+  
+  if (pwmMode < limMode[0]){   //change movement mode to buoy or cruise
+      mode = 'f'; //float mode
+    }else if( pwmMode < limMode[1]){
+      mode = 'd'; //drown mode
+    } else if(pwmMode < limMode[2]){
+      mode = 'c';  //cruise
+      digitalWrite(elevPin, digitalRead(chElPin)); //bypass the signal
+    } else{
+      mode = 'm'; //manual
+    }  
+}
+
 uint8_t calcLA ()//calculate necessary PWM signal to move LA
 {
   double dif = abs(LA_set - LA_dist);
@@ -245,10 +226,61 @@ uint8_t calcLA ()//calculate necessary PWM signal to move LA
   if (dif > 5){
     ret = 255; 
   } else{
-    ret = (uint8_t) (255/LA_bal * dif); //51 = 255/5
+    ret = (uint8_t) (255/ LA_bal * dif); //51 = 255/5
   }
   Serial.print("calcLA ");
   Serial.print(ret);
   return ret;
 }
 
+
+void loopMode (char m) //routine mode while buoy/ not cruise
+{
+    digitalWrite(elevPin, LOW); //turn off elevator
+    
+    //Compute Set point
+    switch (m){
+      case 'f' : LA_set = LA_max; 
+              break;    //floating, linear maximum length, push water out
+      
+      case 'd' : LA_set = LA_min; 
+              break;    //drowning, linear minimum length, pull water in
+      case 'm' : LA_set = (double) setLA();
+                break;  //manual, setpoint from ch2 input
+      default : LA_set = (double) setLA();
+    }
+    LA_set = (double) setLA();
+    //LA_set = 25;
+    
+    /*//Measure distance with ultrasonic sensor
+    digitalWrite(trigPin,LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10); 
+    digitalWrite(trigPin, LOW);
+    duration = pulseIn(echoPin, HIGH);
+    LA_dist = (duration/2) / 29.1;
+  */
+    LA_dist = LA_bal;
+    
+    // PID Computation
+    myPID.Compute();
+    LA_pwm = calcLA();
+    
+    digitalWrite(R_EN, HIGH);
+    digitalWrite(L_EN, HIGH);
+    //PWM Output 
+    if(LA_dist <= LA_set ) {
+        //digitalWrite(R_EN, LOW);
+        //digitalWrite(L_EN, HIGH);
+        analogWrite(LA_PWM,LA_pwm);
+        analogWrite(RPWM,0);
+    }
+    else {
+        //digitalWrite(R_EN, HIGH);
+       // digitalWrite(L_EN, LOW);
+        //analogWrite(LA_PWM,LA_out);
+        analogWrite(LA_PWM,0);
+        analogWrite(RPWM,LA_pwm);
+    }
+}
