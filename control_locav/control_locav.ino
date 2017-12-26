@@ -249,7 +249,8 @@ void loopMode (char m) //routine mode while buoy/ not cruise
                 break;  //manual, setpoint from ch2 input
       default : LA_set = (double) setLA();
     }
-    LA_set = (double) setLA();
+    
+    //LA_set = (double) setLA();
     //LA_set = 25;
     
     /*//Measure distance with ultrasonic sensor
@@ -270,7 +271,7 @@ void loopMode (char m) //routine mode while buoy/ not cruise
     digitalWrite(R_EN, HIGH);
     digitalWrite(L_EN, HIGH);
     //PWM Output 
-    if(LA_dist <= LA_set ) {
+    if(LA_dist >= LA_set ) {
         //digitalWrite(R_EN, LOW);
         //digitalWrite(L_EN, HIGH);
         analogWrite(LA_PWM,LA_pwm);
