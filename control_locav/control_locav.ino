@@ -18,7 +18,7 @@
 #define echoPin 3 //trigger pin for ultrasonic
 
 #define limMode 1700 //GANTI dengan batas pwm mode untuk buoy. < lim bakal buoy
-#define elTol 50 // tolerance for ch2 out pwm stable
+#define elTol 100 // tolerance for ch2 out pwm stable
 //bit flags
 #define EL_FLAG 1
 #define MODE_FLAG 2
