@@ -56,6 +56,7 @@ uint8_t LA_pwm;
 PID myPID (&LA_dist, &LA_out, &LA_set, Kp, Ki, Kd, DIRECT );
 
 long duration;
+int mode_counter; // to count duration of floating and drown mode
 
 void setup() {
   // when pin D2 goes high, call the rising function
@@ -64,13 +65,13 @@ void setup() {
 
   //pin Mode
   pinMode(L_EN, OUTPUT);
-  pinMode(R_EN, OUTPUT);
+  //pinMode(R_EN, OUTPUT);
   pinMode(LA_PWM, OUTPUT);
   //pinMode(elevPin, OUTPUT);
   pinMode (trigPin, OUTPUT);
   pinMode (trigPin, INPUT);
 
-  digitalWrite(R_EN, HIGH);
+//  digitalWrite(R_EN, HIGH);
   digitalWrite(L_EN, HIGH);
   Serial.begin(9600);
 
@@ -137,8 +138,6 @@ void loop() {
   Serial.print(LA_out);
   Serial.print("  LA_set ");
   Serial.print(LA_set);
-  Serial.print("\t R_EN : ");
-  Serial.print(digitalRead(R_EN));
   Serial.print("\t L_EN : ");
   Serial.println(digitalRead(L_EN));
 
@@ -200,7 +199,7 @@ double setLA ()  //compute set point from PWM signal
 void cruise() //service routine while cruise
 {
   //turn off linear actuator
-  digitalWrite(R_EN, LOW);
+  //digitalWrite(R_EN, LOW);
   digitalWrite(L_EN, LOW);
   analogWrite(LA_PWM, 0);
   if (prev_mode != 'c') {
@@ -218,9 +217,11 @@ void currentMode () {
     mode = 'd'; //drown mode
   } else if (pwmMode < limMode[2]) {
     mode = 'c';  //cruise
+    mode_counter = 0;
     digitalWrite(elevPin, digitalRead(chElPin)); //bypass the signal
   } else {
     mode = 'm'; //manual
+    mode_counter = 0;
   }
 }
 
@@ -244,7 +245,7 @@ void manualMode(double f) {   // looping routine for manual mode
   LA_set = f;
   //LA_set = 25;
 
-  /*//Measure distance with ultrasonic sensor
+  //Measure distance with ultrasonic sensor
     digitalWrite(trigPin,LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
@@ -252,8 +253,8 @@ void manualMode(double f) {   // looping routine for manual mode
     digitalWrite(trigPin, LOW);
     duration = pulseIn(echoPin, HIGH);
     LA_dist = (duration/2) / 29.1;
-  */
-  LA_dist = LA_bal;
+  
+  //LA_dist = LA_bal;
 
   // PID Computation
   myPID.Compute();
@@ -280,7 +281,8 @@ void drownMode() {  //looping routin for drowning
   LA_pwm = 255;
   analogWrite(LA_PWM, LA_pwm);
   analogWrite(RPWM, 0);
-  delay (10000);  //drowning for 10 seconds
+  delay (500);  //delay for 0.5 seconds
+  mode_counter ++;
   if (prev_mode != 'd') {
     prev_mode = 'd';
   }
@@ -291,7 +293,8 @@ void floatMode() {  //looping routin for floating
   LA_pwm = 255;
   analogWrite(LA_PWM, 0);
   analogWrite(RPWM, LA_pwm);
-  delay (10000);  //floating for 10 seconds
+  delay (500);  //delay for 0.5 seconds
+  mode_counter ++;
   if (prev_mode != 'f') {
     prev_mode = 'f';
   }
@@ -300,7 +303,7 @@ void floatMode() {  //looping routin for floating
 void buoyMode (char m) //routine mode while buoy/ not cruise
 {
   digitalWrite(elevPin, LOW); //turn off elevator
-  digitalWrite(R_EN, HIGH);
+  //digitalWrite(R_EN, HIGH);
   digitalWrite(L_EN, HIGH);
 
   switch (m) {
@@ -311,14 +314,14 @@ void buoyMode (char m) //routine mode while buoy/ not cruise
       }
       break;
     case 'd' :
-      if (prev_mode == 'd') {
+      if ((prev_mode == 'd') && (mode_counter > 20) ) {
         manualMode(LA_bal);
       } else {
         drownMode();
       }
       break;
     case 'f':
-      if (prev_mode == 'f') {
+      if ((prev_mode == 'f') && (mode_counter > 20) ) {
         manualMode(LA_bal);
       } else {
         floatMode();
