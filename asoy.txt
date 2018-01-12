@@ -1,0 +1,41 @@
+//Naufalino Fadel Hutomo
+// 12 januari 2018
+
+Done:
+- Routing board
+- APM Calibration radio, accel, flight mode
+
+To Know:
+	Board
+- alur sinyal. TX-> RX -> APM - > Board -> aktuator (Bilge Pump/linear Aktuator/servo)
+- Port sinyal di board dimulai dari ch2. ch1 abaikan aja
+- sisi yang deket arduino = sinyal
+- sisi paling jauh dari arduino nano = VCC
+- Flight mode ada 4, manual(with linear actuator), drown, float, cruise(control surface)
+
+FLIGHT MODE, diatur kombinasi 2 switch. Kalo ke atas berarti 0
+01 : manual
+11 : cruise
+21 : drown
+X0 : float ........................ perlu konfirmasi lagi kombinasinya
+
+
+To Do:
+- Servo Calib. Gak ada remote soalnya
+- Calib level
+- *Offset gyro, kalo APM jadi dimiringin
+- calib buat ngelayang. kalo udah ngelayang, catet panjang(dari bacaan ultrasonik), terus ganti variabel LA_bal
+- Limit LA_min, dan LA_max
+
+Problem you might found
+*Bilge Pump gak jalan
+*** RPWM ama LPWM nya kebalik. opsi 1, kabel M+ ama M- dituker
+
+*Servo rudder gak jalan
+***Short di sinyal rudder
+
+*semua servo gak jalan
+***Gak kepower dengan baik. cek pin udah kecolok ato belom
+
+*Arduino gak nyala
+***mungkin tegangan dari Ch output APM gak cukup. Sebelumnya nyoba dari Ch input APM dan cukup
