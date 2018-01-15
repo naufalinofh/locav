@@ -9,12 +9,12 @@
 #define chElPin 2 ////Pin elevator from ch 2 rx. Min 1000 Max 2000 Center 1500
 #define chModePin 3 //Pin mode from ch 5 rx. Min 1000 Max 2000 Center 1500
 #define elevPin 8 // pin to elevator surface control, ch out
-#define LA_PWM 13 //linear actuator pwm signal L, ch out
-#define RPWM A0 //linear actuator pwm signal R
+#define LA_PWM A0 //linear actuator pwm signal L, ch out
+#define RPWM 13 //linear actuator pwm signal R
 #define L_EN A1 //linear actuator enable L
 //#define R_EN 8 //linear actuator enable R
-#define B_PWM A2 //BilgePump pwm signal
-#define B_EN A3 //Bilge Pump enable signal
+//#define B_PWM A2 //BilgePump pwm signal
+#define B_EN A2 //Bilge Pump enable signal
 
 #define trigPin 12 //trigger pin for ultrasonic
 #define echoPin 11 //trigger pin for ultrasonic
@@ -27,7 +27,8 @@ volatile uint8_t bUpdateFlagsShared; //hold the update flags bit
 
 
 /**CHANGE - Depend on Calibration / initial setup in GCS */
-const uint16_t limMode[3] = {1490, 1620, 1749}; //GANTI dengan batas pwm mode untuk berbagai mode [float, drown, cruise, manual]. < lim bakal buoy
+//const uint16_t limMode[3] = {1490, 1620, 1749}; //GANTI dengan batas pwm mode untuk berbagai mode [float, drown, cruise, manual]. < lim bakal buoy. Mode Remote Hanif
+const uint16_t limMode[3] = {1230, 1360, 1490}; //GANTI dengan batas pwm mode untuk berbagai mode [manual, cruise, drown, float], mode remote Hanif
 const double LA_bal = 5; //length of LA to balance the system
 const double LA_min = 0; //minimum length LA
 const double LA_max = 15; //maximum length LA
@@ -210,7 +211,7 @@ void cruise() //service routine while cruise
 
 void currentMode () {
   //decide what current mode from RC CH5 Input
-
+/* Mode remote Fadel
   if (pwmMode < limMode[0]) {  //change movement mode to buoy or cruise
     mode = 'f'; //float mode
   } else if ( pwmMode < limMode[1]) {
@@ -222,6 +223,20 @@ void currentMode () {
   } else {
     mode = 'm'; //manual
     mode_counter = 0;
+  }
+  */
+  //MOde Remote Hanif
+  if (pwmMode < limMode[0]) {  //change movement mode to buoy or cruise
+      mode = 'm'; //manual
+      mode_counter = 0;  } 
+  else if ( pwmMode < limMode[1]) {
+     mode = 'c'; //cruise mode
+     mode_counter = 0;
+    digitalWrite(elevPin, digitalRead(chElPin)); //bypass the signal
+  } else if (pwmMode < limMode[2]) {
+    mode = 'd';  //drown
+  } else {
+    mode = 'f'; //float mode
   }
 }
 
