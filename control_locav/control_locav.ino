@@ -20,7 +20,7 @@
 #define echoPin 11 //trigger pin for ultrasonic
 
 #define elTol 100 // tolerance for ch2 out pwm stable
-//bit flags
+//bit flagsz
 #define EL_FLAG 1
 #define MODE_FLAG 2
 volatile uint8_t bUpdateFlagsShared; //hold the update flags bit
@@ -30,8 +30,8 @@ volatile uint8_t bUpdateFlagsShared; //hold the update flags bit
 //const uint16_t limMode[3] = {1490, 1620, 1749}; //GANTI dengan batas pwm mode untuk berbagai mode [float, drown, cruise, manual]. < lim bakal buoy. Mode Remote Hanif
 const uint16_t limMode[3] = {1230, 1360, 1490}; //GANTI dengan batas pwm mode untuk berbagai mode [manual, cruise, drown, float], mode remote Hanif
 const double LA_bal = 5; //length of LA to balance the system
-const double LA_min = 0; //minimum length LA
-const double LA_max = 15; //maximum length LA
+const double LA_min = 50; //minimum length LA
+const double LA_max = 55; //maximum length LA
 const uint16_t sigMin = 984;
 const uint16_t sigMax = 2012;
 uint16_t sigCen = 1400;
@@ -58,6 +58,7 @@ PID myPID (&LA_dist, &LA_out, &LA_set, Kp, Ki, Kd, DIRECT );
 
 long duration;
 int mode_counter; // to count duration of floating and drown mode
+
 
 void setup() {
   // when pin D2 goes high, call the rising function
@@ -129,14 +130,16 @@ void loop() {
   } else {
     buoyMode(mode);
   }
+  Serial.print(" pwm mode: ");
+  Serial.print(pwmMode);
   Serial.print("  mode: ");
   Serial.print(mode);
   Serial.print("\t PWM Elev : ");
   Serial.print(pwmEl);
   Serial.print("\t LA_dist : ");
   Serial.print(LA_dist);
-  Serial.print("  LA_out ");
-  Serial.print(LA_out);
+  //Serial.print("  LA_out ");
+  //Serial.print(LA_out);
   Serial.print("  LA_set ");
   Serial.print(LA_set);
   Serial.print("\t L_EN : ");
@@ -147,11 +150,14 @@ void loop() {
 
 //ISR for elevator input
 void isrEl() {
-  if (digitalRead(chElPin) == HIGH) {
+  bool val = digitalRead(chElPin);
+  if (val) {
     prev_timeEl = micros();
+    if(mode=='c'){  digitalWrite(elevPin, HIGH);} //bypass the signal}
   } else {
     pwmEl = (uint16_t) (micros() - prev_timeEl);
     bUpdateFlagsShared |= EL_FLAG;
+    if(mode=='c'){  digitalWrite(elevPin, LOW); }//bypass the signal}
   }
 }
 /*
@@ -232,7 +238,6 @@ void currentMode () {
   else if ( pwmMode < limMode[1]) {
      mode = 'c'; //cruise mode
      mode_counter = 0;
-    digitalWrite(elevPin, digitalRead(chElPin)); //bypass the signal
   } else if (pwmMode < limMode[2]) {
     mode = 'd';  //drown
   } else {
