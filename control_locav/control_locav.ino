@@ -9,17 +9,17 @@
 #define chElPin 2 ////Pin elevator from ch 2 rx. Min 1000 Max 2000 Center 1500
 #define chModePin 3 //Pin mode from ch 5 rx. Min 1000 Max 2000 Center 1500
 #define elevPin 8 // pin to elevator surface control, ch out
-#define LA_PWM A0 //linear actuator pwm signal L, ch out
+#define LPWM A0 //linear actuator pwm signal L, ch out
 #define RPWM 13 //linear actuator pwm signal R
 #define L_EN A1 //linear actuator enable L
 //#define R_EN 8 //linear actuator enable R
-//#define B_PWM A2 //BilgePump pwm signal
 #define B_EN A2 //Bilge Pump enable signal
+#define B_PWM A3 //BilgePump pwm signal
 
 #define trigPin 12 //trigger pin for ultrasonic
 #define echoPin 11 //trigger pin for ultrasonic
 
-#define elTol 100 // tolerance for ch2 out pwm stable
+#define elTol 70 // tolerance for ch2 out pwm stable
 //bit flagsz
 #define EL_FLAG 1
 #define MODE_FLAG 2
@@ -29,10 +29,10 @@ volatile uint8_t bUpdateFlagsShared; //hold the update flags bit
 /**CHANGE - Depend on Calibration / initial setup in GCS */
 //const uint16_t limMode[3] = {1490, 1620, 1749}; //GANTI dengan batas pwm mode untuk berbagai mode [float, drown, cruise, manual]. < lim bakal buoy. Mode Remote Hanif
 const uint16_t limMode[3] = {1230, 1360, 1490}; //GANTI dengan batas pwm mode untuk berbagai mode [manual, cruise, drown, float], mode remote Hanif
-const double LA_bal = 5; //length of LA to balance the system
+const double LA_bal = 54; //length of LA to balance the system
 const double LA_min = 50; //minimum length LA
-const double LA_max = 55; //maximum length LA
-const uint16_t sigMin = 984;
+const double LA_max = 58.5; //maximum length LA
+const uint16_t sigMin = 990;
 const uint16_t sigMax = 2012;
 uint16_t sigCen = 1400;
 
@@ -52,7 +52,7 @@ volatile char prev_mode = 'm';
 double LA_set = LA_bal;
 double LA_dist;
 double LA_out;
-uint8_t LA_pwm;
+double LA_pwm;
 
 PID myPID (&LA_dist, &LA_out, &LA_set, Kp, Ki, Kd, DIRECT );
 
@@ -68,7 +68,8 @@ void setup() {
   //pin Mode
   pinMode(L_EN, OUTPUT);
   //pinMode(R_EN, OUTPUT);
-  pinMode(LA_PWM, OUTPUT);
+  pinMode(LPWM, OUTPUT);
+  pinMode(RPWM, OUTPUT);
   //pinMode(elevPin, OUTPUT);
   pinMode (trigPin, OUTPUT);
   pinMode (trigPin, INPUT);
@@ -76,7 +77,6 @@ void setup() {
 //  digitalWrite(R_EN, HIGH);
   digitalWrite(L_EN, HIGH);
   Serial.begin(9600);
-
   delay(1000);
   sigCen = pwmEl; //calibration
   Serial.print("calibrated");
@@ -130,20 +130,18 @@ void loop() {
   } else {
     buoyMode(mode);
   }
-  Serial.print(" pwm mode: ");
-  Serial.print(pwmMode);
   Serial.print("  mode: ");
   Serial.print(mode);
   Serial.print("\t PWM Elev : ");
   Serial.print(pwmEl);
   Serial.print("\t LA_dist : ");
   Serial.print(LA_dist);
-  //Serial.print("  LA_out ");
-  //Serial.print(LA_out);
   Serial.print("  LA_set ");
   Serial.print(LA_set);
-  Serial.print("\t L_EN : ");
-  Serial.println(digitalRead(L_EN));
+  Serial.print("  RPWM ");
+  Serial.print(RPWM);
+  Serial.print("\t LA PWM : ");
+  Serial.println(LA_pwm);
 
 }
 
@@ -205,14 +203,16 @@ double setLA ()  //compute set point from PWM signal
 
 void cruise() //service routine while cruise
 {
+  
   //turn off linear actuator
   //digitalWrite(R_EN, LOW);
   digitalWrite(L_EN, LOW);
-  analogWrite(LA_PWM, 0);
+  analogWrite(LPWM, 0);
+  //manualMode(LA_bal);
   if (prev_mode != 'c') {
     prev_mode = 'c';
   }
-
+  analogWrite(B_PWM, 200);
 }
 
 void currentMode () {
@@ -245,6 +245,7 @@ void currentMode () {
   }
 }
 
+/*
 uint8_t calcLA ()//calculate necessary PWM signal to move LA
 {
   double dif = abs(LA_set - LA_dist);
@@ -259,11 +260,12 @@ uint8_t calcLA ()//calculate necessary PWM signal to move LA
   Serial.print(ret);
   return ret;
 }
+*/
 
 void manualMode(double f) {   // looping routine for manual mode
   //Compute Set point
   LA_set = f;
-  //LA_set = 25;
+  //LA_set = 50;
 
   //Measure distance with ultrasonic sensor
     digitalWrite(trigPin,LOW);
@@ -278,41 +280,37 @@ void manualMode(double f) {   // looping routine for manual mode
 
   // PID Computation
   myPID.Compute();
-  LA_pwm = calcLA();
+  LA_pwm = LA_out;
 
 
   //PWM Output
   if (LA_dist >= LA_set ) {
     //digitalWrite(R_EN, LOW);
     //digitalWrite(L_EN, HIGH);
-    analogWrite(LA_PWM, LA_pwm);
+    analogWrite(LPWM, LA_pwm);
     analogWrite(RPWM, 0);
   }
   else {
     //digitalWrite(R_EN, HIGH);
     // digitalWrite(L_EN, LOW);
-    //analogWrite(LA_PWM,LA_out);
-    analogWrite(LA_PWM, 0);
+    //analogWrite(LPWM,LA_out);
+    analogWrite(LPWM, 0);
     analogWrite(RPWM, LA_pwm);
   }
 }
 
 void drownMode() {  //looping routin for drowning
-  LA_pwm = 255;
-  analogWrite(LA_PWM, LA_pwm);
-  analogWrite(RPWM, 0);
+  manualMode(LA_min);
   delay (500);  //delay for 0.5 seconds
   mode_counter ++;
   if (prev_mode != 'd') {
-    prev_mode = 'd';
+    prev_mode = 'd'; 
   }
 }
 
 
 void floatMode() {  //looping routin for floating
-  LA_pwm = 255;
-  analogWrite(LA_PWM, 0);
-  analogWrite(RPWM, LA_pwm);
+  manualMode(LA_max);
   delay (500);  //delay for 0.5 seconds
   mode_counter ++;
   if (prev_mode != 'f') {
